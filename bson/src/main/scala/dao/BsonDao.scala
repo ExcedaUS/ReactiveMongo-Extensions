@@ -109,22 +109,38 @@ abstract class BsonDao[Model, ID](db: => DB, collectionName: String)(implicit mo
 
   def find(
     selector: BSONDocument = BSONDocument.empty,
+    projection : Option[BSONDocument] = None,
     sort: BSONDocument = BSONDocument("_id" -> 1),
     page: Int,
     pageSize: Int)(implicit ec: ExecutionContext): Future[List[Model]] = {
     val from = (page - 1) * pageSize
-    collection
+    projection.fold(
+      collection
       .find(selector)
       .sort(sort)
       .options(QueryOpts(skipN = from, batchSizeN = pageSize))
-      .cursor[Model]
+      .cursor[Model]()
       .collect[List](pageSize)
+    )(proj =>
+      collection
+        .find(selector, proj)
+        .sort(sort)
+        .options(QueryOpts(skipN = from, batchSizeN = pageSize))
+        .cursor[Model]()
+        .collect[List](pageSize)
+    )
   }
 
   def findAll(
     selector: BSONDocument = BSONDocument.empty,
-    sort: BSONDocument = BSONDocument("_id" -> 1))(implicit ec: ExecutionContext): Future[List[Model]] =
-    collection.find(selector).sort(sort).cursor[Model].collect[List]()
+    projection : Option[BSONDocument] = None,
+    sort: BSONDocument = BSONDocument("_id" -> 1))(implicit ec: ExecutionContext): Future[List[Model]] = {
+    projection.fold(collection.find(selector).sort(sort).cursor[Model]().collect[List]()) {
+      proj =>
+        collection.find(selector, proj).sort(sort).cursor[Model]().collect[List]()
+    }
+
+  }
 
   @deprecated(since = "0.11.1",
     message = "Directly use [[findAndUpdate]] collection operation")
@@ -169,9 +185,9 @@ abstract class BsonDao[Model, ID](db: => DB, collectionName: String)(implicit mo
     val mappedDocuments = documents.map(lifeCycle.prePersist)
     val writer = implicitly[BSONDocumentWriter[Model]]
 
-    collection.bulkInsert(mappedDocuments.map(writer.write(_)).toStream,
-      true, defaultWriteConcern, bulkSize, bulkByteSize) map { result =>
-        mappedDocuments.map(lifeCycle.postPersist)
+    collection.bulkInsert(mappedDocuments.map(writer.write).toStream,
+      ordered = true, defaultWriteConcern, bulkSize, bulkByteSize) map { result =>
+        mappedDocuments.foreach(lifeCycle.postPersist)
         result.n
       }
   }
@@ -231,7 +247,7 @@ abstract class BsonDao[Model, ID](db: => DB, collectionName: String)(implicit mo
   def foreach(
     selector: BSONDocument = BSONDocument.empty,
     sort: BSONDocument = BSONDocument("_id" -> 1))(f: (Model) => Unit)(implicit ec: ExecutionContext): Future[Unit] = {
-    collection.find(selector).sort(sort).cursor[Model]
+    collection.find(selector).sort(sort).cursor[Model]()
       .enumerate()
       .apply(Iteratee.foreach(f))
       .flatMap(i => i.run)
@@ -241,7 +257,7 @@ abstract class BsonDao[Model, ID](db: => DB, collectionName: String)(implicit mo
     selector: BSONDocument = BSONDocument.empty,
     sort: BSONDocument = BSONDocument("_id" -> 1),
     state: A)(f: (A, Model) => A)(implicit ec: ExecutionContext): Future[A] = {
-    collection.find(selector).sort(sort).cursor[Model]
+    collection.find(selector).sort(sort).cursor[Model]()
       .enumerate()
       .apply(Iteratee.fold(state)(f))
       .flatMap(i => i.run)
