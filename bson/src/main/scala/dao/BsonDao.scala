@@ -108,50 +108,50 @@ abstract class BsonDao[Model, ID](db: => DB, collectionName: String)(implicit mo
     findAll("_id" $in (ids: _*))
 
   /**
-    * Retrieves models by page matching the given selector.
-    *
-    * @param selector Selector document.
-    * @param sort     Sorting document.
-    * @param page     1 based page number.
-    * @param pageSize Maximum number of elements in each page.
-    */
+   * Retrieves models by page matching the given selector.
+   *
+   * @param selector Selector document.
+   * @param sort     Sorting document.
+   * @param page     1 based page number.
+   * @param pageSize Maximum number of elements in each page.
+   */
   def find(selector: BSONDocument, sort: BSONDocument, page: Int, pageSize: Int)(implicit ec: ExecutionContext) = find(selector, None, sort, page, pageSize)
 
   /**
-    * Retrieves all models matching the given selector.
-    *
-    * @param selector Selector document.
-    * @param sort     Sorting document.
-    */
+   * Retrieves all models matching the given selector.
+   *
+   * @param selector Selector document.
+   * @param sort     Sorting document.
+   */
   def findAll(selector: BSONDocument, sort: BSONDocument)(implicit ec: ExecutionContext) = findAll(selector, None, sort)
 
   def find(
     selector: BSONDocument = BSONDocument.empty,
-    projection : Option[BSONDocument] = None,
+    projection: Option[BSONDocument] = None,
     sort: BSONDocument = BSONDocument("_id" -> 1),
     page: Int,
     pageSize: Int)(implicit ec: ExecutionContext): Future[List[Model]] = {
     val from = (page - 1) * pageSize
     projection.fold(
       collection
-      .find(selector)
-      .sort(sort)
-      .options(QueryOpts(skipN = from, batchSizeN = pageSize))
-      .cursor[Model]()
-      .collect[List](pageSize)
-    )(proj =>
-      collection
-        .find(selector, proj)
+        .find(selector)
         .sort(sort)
         .options(QueryOpts(skipN = from, batchSizeN = pageSize))
         .cursor[Model]()
         .collect[List](pageSize)
-    )
+    )(proj =>
+        collection
+          .find(selector, proj)
+          .sort(sort)
+          .options(QueryOpts(skipN = from, batchSizeN = pageSize))
+          .cursor[Model]()
+          .collect[List](pageSize)
+      )
   }
 
   def findAll(
     selector: BSONDocument = BSONDocument.empty,
-    projection : Option[BSONDocument] = None,
+    projection: Option[BSONDocument] = None,
     sort: BSONDocument = BSONDocument("_id" -> 1))(implicit ec: ExecutionContext): Future[List[Model]] = {
     projection.fold(collection.find(selector).sort(sort).cursor[Model]().collect[List]()) {
       proj =>
@@ -191,15 +191,15 @@ abstract class BsonDao[Model, ID](db: => DB, collectionName: String)(implicit mo
     }
   }
 
-  private val (maxBulkSize, maxBsonSize): (Int, Int) =
-    collection.db.connection.metadata.map {
-      metadata => metadata.maxBulkSize -> metadata.maxBsonSize
-    }.getOrElse[(Int, Int)](Int.MaxValue -> Int.MaxValue)
+  //  private val (maxBulkSize, maxBsonSize): (Int, Int) =
+  //    collection.db.connection.metadata.map {
+  //      metadata => metadata.maxBulkSize -> metadata.maxBsonSize
+  //    }.getOrElse[(Int, Int)](Int.MaxValue -> Int.MaxValue)
 
   def bulkInsert(
     documents: TraversableOnce[Model],
-    bulkSize: Int = maxBulkSize,
-    bulkByteSize: Int = maxBsonSize)(implicit ec: ExecutionContext): Future[Int] = {
+    bulkSize: Int,
+    bulkByteSize: Int)(implicit ec: ExecutionContext): Future[Int] = {
     val mappedDocuments = documents.map(lifeCycle.prePersist)
     val writer = implicitly[BSONDocumentWriter[Model]]
 

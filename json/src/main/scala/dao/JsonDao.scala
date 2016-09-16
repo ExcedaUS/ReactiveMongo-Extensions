@@ -162,16 +162,17 @@ abstract class JsonDao[Model: OFormat, ID: Writes](db: => DB, collectionName: St
       writeResult
     }
   }
+  // ReactiveMongo API changed and this metadata is no longer accessible (at least this way) - in the interest of getting somethign compilable, this is out for now
 
-  private val (maxBulkSize, maxBsonSize): (Int, Int) =
-    collection.db.connection.metadata.map {
-      metadata => metadata.maxBulkSize -> metadata.maxBsonSize
-    }.getOrElse[(Int, Int)](Int.MaxValue -> Int.MaxValue)
+  //  private val (maxBulkSize, maxBsonSize): (Int, Int) =
+  //    collection.db.connection.metadata.map {
+  //      metadata => metadata.maxBulkSize -> metadata.maxBsonSize
+  //    }.getOrElse[(Int, Int)](Int.MaxValue -> Int.MaxValue)
 
   def bulkInsert(
     documents: TraversableOnce[Model],
-    bulkSize: Int = maxBulkSize,
-    bulkByteSize: Int = maxBsonSize)(implicit ec: ExecutionContext): Future[Int] = {
+    bulkSize: Int,
+    bulkByteSize: Int)(implicit ec: ExecutionContext): Future[Int] = {
     val mappedDocuments = documents.map(lifeCycle.prePersist)
     val writer = implicitly[OWrites[Model]]
 
@@ -235,7 +236,7 @@ abstract class JsonDao[Model: OFormat, ID: Writes](db: => DB, collectionName: St
   def foreach(
     selector: JsObject = Json.obj(),
     sort: JsObject = Json.obj("_id" -> 1))(f: (Model) => Unit)(implicit ec: ExecutionContext): Future[Unit] = {
-    collection.find(selector).sort(sort).cursor[Model]
+    collection.find(selector).sort(sort).cursor[Model]()
       .enumerate()
       .apply(Iteratee.foreach(f))
       .flatMap(i => i.run)

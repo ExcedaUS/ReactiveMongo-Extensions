@@ -33,11 +33,16 @@ object Handlers {
   implicit def MapBSONReader[T](implicit reader: BSONReader[_ <: BSONValue, T]): BSONDocumentReader[Map[String, T]] =
     new BSONDocumentReader[Map[String, T]] {
       def read(doc: BSONDocument): Map[String, T] = {
-        doc.elements.collect {
-          case (key, value) => value.seeAsOpt[T](reader) map {
-            ov => (key, ov)
+        doc.elements.flatMap { tuple =>
+          tuple._2.seeAsOpt[T](reader).map {
+            ov => (tuple._1, ov)
           }
-        }.flatten.toMap
+        }.toMap
+        //        doc.elements.collect {
+        //          case (key, value) => value.seeAsOpt[T](reader) map {
+        //            ov => (key, ov)
+        //          }
+        //        }.flatten.toMap
       }
     }
 
