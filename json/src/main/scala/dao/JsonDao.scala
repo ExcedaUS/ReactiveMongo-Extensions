@@ -230,7 +230,7 @@ abstract class JsonDao[Model: OFormat, ID: Writes](db: => DB, collectionName: St
   }
 
   def removeAll(writeConcern: GetLastError = defaultWriteConcern)(implicit ec: ExecutionContext): Future[WriteResult] = {
-    collection.remove(query = Json.obj(), writeConcern = writeConcern, firstMatchOnly = false)
+    collection.remove(selector = Json.obj(), writeConcern = writeConcern, firstMatchOnly = false)
   }
 
   def foreach(

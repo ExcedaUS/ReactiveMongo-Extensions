@@ -16,14 +16,14 @@
 
 package reactivemongo.extensions.json.fixtures
 
-import scala.concurrent.{ Future, ExecutionContext }
-import reactivemongo.extensions.util.Logger
-import reactivemongo.extensions.fixtures.Fixtures
+import play.api.libs.json.{ JsObject, Json }
+import play.modules.reactivemongo.json._
 import reactivemongo.api.DB
 import reactivemongo.api.commands.WriteResult
-import play.modules.reactivemongo.json._, collection.JSONCollection
-import play.api.libs.iteratee.Enumerator
-import play.api.libs.json.{ Json, JsObject }
+import reactivemongo.extensions.fixtures.Fixtures
+import reactivemongo.play.json.collection.JSONCollection
+
+import scala.concurrent.{ ExecutionContext, Future }
 
 class JsonFixtures(db: => DB)(implicit ec: ExecutionContext) extends Fixtures[JsObject] {
 
@@ -34,10 +34,10 @@ class JsonFixtures(db: => DB)(implicit ec: ExecutionContext) extends Fixtures[Js
 
   def removeAll(collectionName: String): Future[WriteResult] =
     db.collection[JSONCollection](collectionName).
-      remove(query = Json.obj(), firstMatchOnly = false)
+      remove(selector = Json.obj(), firstMatchOnly = false)
 
-  def drop(collectionName: String): Future[Unit] =
-    db.collection[JSONCollection](collectionName).drop()
+  def drop(collectionName: String): Future[Boolean] =
+    db.collection[JSONCollection](collectionName).drop(failIfNotFound = false)
 
 }
 

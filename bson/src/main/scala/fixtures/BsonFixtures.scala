@@ -16,17 +16,14 @@
 
 package reactivemongo.extensions.fixtures
 
-import scala.concurrent.{ Future, ExecutionContext }
-
-import play.api.libs.iteratee.Enumerator
 import play.api.libs.json.JsObject
-
-import reactivemongo.bson.BSONDocument
 import reactivemongo.api.DB
-import reactivemongo.api.commands.WriteResult
 import reactivemongo.api.collections.bson.BSONCollection
-import play.modules.reactivemongo.json.BSONFormats
-import reactivemongo.extensions.util.Logger
+import reactivemongo.api.commands.WriteResult
+import reactivemongo.bson.BSONDocument
+import reactivemongo.play.json.BSONFormats
+
+import scala.concurrent.{ ExecutionContext, Future }
 
 class BsonFixtures(db: => DB)(implicit ec: ExecutionContext) extends Fixtures[BSONDocument] {
   def map(document: JsObject): BSONDocument =
@@ -37,10 +34,10 @@ class BsonFixtures(db: => DB)(implicit ec: ExecutionContext) extends Fixtures[BS
 
   def removeAll(collectionName: String): Future[WriteResult] =
     db.collection[BSONCollection](collectionName).
-      remove(query = BSONDocument.empty, firstMatchOnly = false)
+      remove(selector = BSONDocument.empty, firstMatchOnly = false)
 
-  def drop(collectionName: String): Future[Unit] =
-    db.collection[BSONCollection](collectionName).drop()
+  def drop(collectionName: String): Future[Boolean] =
+    db.collection[BSONCollection](collectionName).drop(failIfNotFound = false)
 
 }
 

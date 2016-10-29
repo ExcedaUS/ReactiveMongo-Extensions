@@ -259,7 +259,7 @@ abstract class BsonDao[Model, ID](db: => DB, collectionName: String)(implicit mo
     firstMatchOnly: Boolean = false)(implicit ec: ExecutionContext): Future[WriteResult] = collection.remove(query, writeConcern, firstMatchOnly)
 
   def removeAll(writeConcern: GetLastError = defaultWriteConcern)(implicit ec: ExecutionContext): Future[WriteResult] = {
-    collection.remove(query = BSONDocument.empty, writeConcern = writeConcern, firstMatchOnly = false)
+    collection.remove(selector = BSONDocument.empty, writeConcern = writeConcern, firstMatchOnly = false)
   }
 
   def foreach(
