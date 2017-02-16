@@ -41,7 +41,7 @@ class JsonFileDaoSpec
 
   import JsonFileDao._
 
-  val dao = new JsonFileDao[JsObject](MongoContext.db, "json-files") {}
+  val dao = new JsonFileDao[JsObject](MongoContext.oldDb, "json-files") {}
 
   "A JsonFileDao" should "save and remove file" in {
     val enumerator = Enumerator.fromStream(getClass.getResourceAsStream("/whyfp90.pdf"))

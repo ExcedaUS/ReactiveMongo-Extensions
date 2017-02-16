@@ -19,8 +19,10 @@ package reactivemongo.extensions.json.dao
 import scala.concurrent.ExecutionContext.Implicits.global
 import reactivemongo.extensions.json.model.CustomIdModel
 import reactivemongo.extensions.dao.MongoContext
-import reactivemongo.api.indexes.{ Index, IndexType }
+import reactivemongo.api.indexes.{Index, IndexType}
 import reactivemongo.extensions.util.Misc.UUID
+
+import scala.concurrent.Future
 
 class CustomIdJsonDao
     extends JsonDao[CustomIdModel, String](MongoContext.db, "dummy-" + UUID()) {

@@ -16,13 +16,13 @@
 
 package reactivemongo.extensions.json.dao
 
-import play.api.libs.json.{ Writes, OFormat }
-import reactivemongo.api.DB
-import reactivemongo.extensions.dao.{ ReflexiveLifeCycle, LifeCycle }
+import play.api.libs.json.{ OFormat, Writes }
+import reactivemongo.api.{ DB, DefaultDB }
+import reactivemongo.extensions.dao.{ LifeCycle, ReflexiveLifeCycle }
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ ExecutionContext, Future }
 
-class JsonDaoBuilder[Model: OFormat, ID: Writes](db: => DB) {
+class JsonDaoBuilder[Model: OFormat, ID: Writes](db: => Future[DefaultDB]) {
   def apply(collectionName: String)(
     implicit lifeCycle: LifeCycle[Model, ID] = new ReflexiveLifeCycle[Model, ID],
     ec: ExecutionContext): JsonDao[Model, ID] = {
@@ -31,7 +31,7 @@ class JsonDaoBuilder[Model: OFormat, ID: Writes](db: => DB) {
 }
 
 object JsonDaoBuilder {
-  def apply[Model: OFormat, ID: Writes](db: => DB): JsonDaoBuilder[Model, ID] = {
+  def apply[Model: OFormat, ID: Writes](db: => Future[DefaultDB]): JsonDaoBuilder[Model, ID] = {
     new JsonDaoBuilder[Model, ID](db)
   }
 }

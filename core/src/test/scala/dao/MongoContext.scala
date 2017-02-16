@@ -16,13 +16,16 @@
 
 package reactivemongo.extensions.dao
 
-import reactivemongo.api.{ MongoDriver, DefaultDB }
+import reactivemongo.api.{DefaultDB, MongoDriver}
 import reactivemongo.extensions.util.Misc.UUID
+
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 object MongoContext {
   val driver = new MongoDriver
   val connection = driver.connection(List("localhost"))
-  def db: DefaultDB = connection("test-reactivemongo-extensions")
-  def randomDb: DefaultDB = connection(UUID())
+  def db = Future(connection("test-reactivemongo-extensions"))
+  def oldDb = connection("test-reactivemongo-extensions")
+  def randomDb = Future(connection(UUID()))
 }

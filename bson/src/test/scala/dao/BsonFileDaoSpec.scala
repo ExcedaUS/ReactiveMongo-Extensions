@@ -37,7 +37,7 @@ class BsonFileDaoSpec
 
   override implicit def patienceConfig = PatienceConfig(timeout = Span(20, Seconds), interval = Span(1, Seconds))
 
-  val dao = new BsonFileDao[BSONObjectID](MongoContext.db, "bson-files") {}
+  val dao = new BsonFileDao[BSONObjectID](MongoContext.oldDb, "bson-files") {}
 
   "A BsonFileDao" should "save and remove file" in {
     val enumerator = Enumerator.fromStream(getClass.getResourceAsStream("/whyfp90.pdf"))

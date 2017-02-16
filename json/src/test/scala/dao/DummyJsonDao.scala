@@ -19,10 +19,12 @@ package reactivemongo.extensions.json.dao
 import scala.concurrent.ExecutionContext.Implicits.global
 import reactivemongo.extensions.json.model.DummyModel
 import reactivemongo.extensions.dao.MongoContext
-import reactivemongo.api.indexes.{ Index, IndexType }
+import reactivemongo.api.indexes.{Index, IndexType}
 import reactivemongo.bson.BSONObjectID
 import play.modules.reactivemongo.json.BSONFormats._
 import reactivemongo.extensions.util.Misc.UUID
+
+import scala.concurrent.Future
 
 class DummyJsonDao extends {
   override val autoIndexes = Seq(

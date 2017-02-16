@@ -16,8 +16,8 @@
 
 package reactivemongo.extensions.dao
 
-import play.api.libs.json.{ JsObject, Json, JsValue, Writes }
-import reactivemongo.api.{ DB, DBMetaCommands }
+import play.api.libs.json.{ JsObject, JsValue, Json, Writes }
+import reactivemongo.api.{ DB, DBMetaCommands, DefaultDB }
 import reactivemongo.api.gridfs.IdProducer
 import reactivemongo.bson.BSONValue
 import reactivemongo.extensions.dao.FileDao.ReadFileWrapper

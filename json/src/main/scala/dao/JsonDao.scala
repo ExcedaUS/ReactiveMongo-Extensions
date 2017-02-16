@@ -17,29 +17,18 @@
 package reactivemongo.extensions.json.dao
 
 import scala.util.Random
-
-import scala.concurrent.{ Future, Await, ExecutionContext }
-
+import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.concurrent.duration._
 import reactivemongo.bson._
-import reactivemongo.api.{ DB, QueryOpts }
+import reactivemongo.api.{ DB, DefaultDB, QueryOpts }
 import reactivemongo.api.indexes.Index
 import reactivemongo.api.commands.{ GetLastError, WriteResult }
-import play.modules.reactivemongo.json._, collection.JSONCollection
+import play.modules.reactivemongo.json._
+import collection.JSONCollection
 import reactivemongo.extensions.dao.{ Dao, LifeCycle, ReflexiveLifeCycle }
 import reactivemongo.extensions.json.dsl.JsonDsl._
-
-import play.api.libs.json.{
-  Json,
-  JsError,
-  JsSuccess,
-  JsObject,
-  OFormat,
-  OWrites,
-  Reads,
-  Writes
-}
-import play.api.libs.iteratee.{ Iteratee, Enumerator }
+import play.api.libs.json.{ JsError, JsObject, JsSuccess, Json, OFormat, OWrites, Reads, Writes }
+import play.api.libs.iteratee.{ Enumerator, Iteratee }
 
 /**
  * A DAO implementation that operates on JSONCollection using JsObject.
@@ -89,13 +78,13 @@ import play.api.libs.iteratee.{ Iteratee, Enumerator }
  * @tparam Model Type of the model that this DAO uses.
  * @tparam ID Type of the ID field of the model.
  */
-abstract class JsonDao[Model: OFormat, ID: Writes](db: => DB, collectionName: String)(implicit lifeCycle: LifeCycle[Model, ID] = new ReflexiveLifeCycle[Model, ID], ec: ExecutionContext)
+abstract class JsonDao[Model: OFormat, ID: Writes](db: => Future[DefaultDB], collectionName: String)(implicit lifeCycle: LifeCycle[Model, ID] = new ReflexiveLifeCycle[Model, ID], ec: ExecutionContext)
     extends Dao[JSONCollection, JsObject, Model, ID, OWrites](
       db, collectionName) {
 
   def ensureIndexes()(implicit ec: ExecutionContext): Future[Traversable[Boolean]] = Future sequence {
     autoIndexes map { index =>
-      collection.indexesManager.ensure(index)
+      collection.flatMap(_.indexesManager.ensure(index))
     }
   }.map { results =>
     lifeCycle.ensuredIndexes()
@@ -103,9 +92,9 @@ abstract class JsonDao[Model: OFormat, ID: Writes](db: => DB, collectionName: St
   }
 
   def listIndexes()(implicit ec: ExecutionContext): Future[List[Index]] =
-    collection.indexesManager.list()
+    collection.flatMap(_.indexesManager.list())
 
-  def findOne(selector: JsObject = Json.obj())(implicit ec: ExecutionContext): Future[Option[Model]] = collection.find(selector).one[Model]
+  def findOne(selector: JsObject = Json.obj())(implicit ec: ExecutionContext): Future[Option[Model]] = collection.flatMap(_.find(selector).one[Model])
 
   def findById(id: ID)(implicit ec: ExecutionContext): Future[Option[Model]] =
     findOne($id(id))
@@ -119,18 +108,18 @@ abstract class JsonDao[Model: OFormat, ID: Writes](db: => DB, collectionName: St
     page: Int,
     pageSize: Int)(implicit ec: ExecutionContext): Future[List[Model]] = {
     val from = (page - 1) * pageSize
-    collection
+    collection.flatMap(_
       .find(selector)
       .sort(sort)
       .options(QueryOpts(skipN = from, batchSizeN = pageSize))
       .cursor[Model]
-      .collect[List](pageSize)
+      .collect[List](pageSize))
   }
 
   def findAll(
     selector: JsObject = Json.obj(),
     sort: JsObject = Json.obj("_id" -> 1))(implicit ec: ExecutionContext): Future[List[Model]] = {
-    collection.find(selector).sort(sort).cursor[Model].collect[List]()
+    collection.flatMap(_.find(selector).sort(sort).cursor[Model].collect[List]())
   }
 
   @deprecated(since = "0.11.1",
@@ -140,27 +129,24 @@ abstract class JsonDao[Model: OFormat, ID: Writes](db: => DB, collectionName: St
     update: JsObject,
     sort: JsObject = Json.obj(),
     fetchNewObject: Boolean = false,
-    upsert: Boolean = false)(implicit ec: ExecutionContext): Future[Option[Model]] = collection.findAndUpdate(
-    query, update, fetchNewObject, upsert).map(_.result[Model])
+    upsert: Boolean = false)(implicit ec: ExecutionContext): Future[Option[Model]] = collection.flatMap(_.findAndUpdate(query, update, fetchNewObject, upsert).map(_.result[Model]))
 
   @deprecated(since = "0.11.1",
     message = "Directly use [[findAndRemove]] collection operation")
-  def findAndRemove(query: JsObject, sort: JsObject = Json.obj())(implicit ec: ExecutionContext): Future[Option[Model]] = collection.findAndRemove(
-    query, if (sort == BSONDocument.empty) None else Some(sort)).
-    map(_.result[Model])
+  def findAndRemove(query: JsObject, sort: JsObject = Json.obj())(implicit ec: ExecutionContext): Future[Option[Model]] = collection.flatMap(_.findAndRemove(query, if (sort == BSONDocument.empty) None else Some(sort)).map(_.result[Model]))
 
   def findRandom(selector: JsObject = Json.obj())(implicit ec: ExecutionContext): Future[Option[Model]] = for {
     count <- count(selector)
     index = Random.nextInt(count)
-    random <- collection.find(selector).options(QueryOpts(skipN = index, batchSizeN = 1)).one[Model]
+    random <- collection.flatMap(_.find(selector).options(QueryOpts(skipN = index, batchSizeN = 1)).one[Model])
   } yield random
 
   def insert(model: Model, writeConcern: GetLastError = defaultWriteConcern)(implicit ec: ExecutionContext): Future[WriteResult] = {
     val mappedModel = lifeCycle.prePersist(model)
-    collection.insert(mappedModel, writeConcern) map { writeResult =>
+    collection.flatMap(_.insert(mappedModel, writeConcern) map { writeResult =>
       lifeCycle.postPersist(mappedModel)
       writeResult
-    }
+    })
   }
   // ReactiveMongo API changed and this metadata is no longer accessible (at least this way) - in the interest of getting somethign compilable, this is out for now
 
@@ -181,11 +167,11 @@ abstract class JsonDao[Model: OFormat, ID: Writes](db: => DB, collectionName: St
       case _ => Stream.Empty
     }
 
-    collection.bulkInsert(go(mappedDocuments.toTraversable),
+    collection.flatMap(_.bulkInsert(go(mappedDocuments.toTraversable),
       true, defaultWriteConcern, bulkSize, bulkByteSize) map { result =>
         mappedDocuments.map(lifeCycle.postPersist)
         result.n
-      }
+      })
   }
 
   def update[U: OWrites](
@@ -193,70 +179,70 @@ abstract class JsonDao[Model: OFormat, ID: Writes](db: => DB, collectionName: St
     update: U,
     writeConcern: GetLastError = defaultWriteConcern,
     upsert: Boolean = false,
-    multi: Boolean = false)(implicit ec: ExecutionContext): Future[WriteResult] = collection.update(selector, update, writeConcern, upsert, multi)
+    multi: Boolean = false)(implicit ec: ExecutionContext): Future[WriteResult] = collection.flatMap(_.update(selector, update, writeConcern, upsert, multi))
 
   def updateById[U: OWrites](
     id: ID,
     update: U,
-    writeConcern: GetLastError = defaultWriteConcern)(implicit ec: ExecutionContext): Future[WriteResult] = collection.update($id(id), update, writeConcern)
+    writeConcern: GetLastError = defaultWriteConcern)(implicit ec: ExecutionContext): Future[WriteResult] = collection.flatMap(_.update($id(id), update, writeConcern))
 
   def save(model: Model, writeConcern: GetLastError = defaultWriteConcern)(implicit ec: ExecutionContext): Future[WriteResult] = {
     val mappedModel = lifeCycle.prePersist(model)
-    collection.save(mappedModel, writeConcern) map { lastError =>
+    collection.flatMap(_.save(mappedModel, writeConcern) map { lastError =>
       lifeCycle.postPersist(mappedModel)
       lastError
-    }
+    })
   }
 
-  def count(selector: JsObject = Json.obj())(implicit ec: ExecutionContext): Future[Int] = collection.count(Some(selector))
+  def count(selector: JsObject = Json.obj())(implicit ec: ExecutionContext): Future[Int] = collection.flatMap(_.count(Some(selector)))
 
-  def drop()(implicit ec: ExecutionContext): Future[Unit] = collection.drop()
+  def drop()(implicit ec: ExecutionContext): Future[Unit] = collection.flatMap(_.drop())
 
   def dropSync(timeout: Duration = 10 seconds)(implicit ec: ExecutionContext): Unit = Await.result(drop(), timeout)
 
   def removeById(id: ID, writeConcern: GetLastError = defaultWriteConcern)(implicit ec: ExecutionContext): Future[WriteResult] = {
     lifeCycle.preRemove(id)
-    collection.remove($id(id), writeConcern = defaultWriteConcern) map { lastError =>
+    collection.flatMap(_.remove($id(id), writeConcern = defaultWriteConcern) map { lastError =>
       lifeCycle.postRemove(id)
       lastError
-    }
+    })
   }
 
   def remove(
     query: JsObject,
     writeConcern: GetLastError = defaultWriteConcern,
     firstMatchOnly: Boolean = false)(implicit ec: ExecutionContext): Future[WriteResult] = {
-    collection.remove(query, writeConcern, firstMatchOnly)
+    collection.flatMap(_.remove(query, writeConcern, firstMatchOnly))
   }
 
   def removeAll(writeConcern: GetLastError = defaultWriteConcern)(implicit ec: ExecutionContext): Future[WriteResult] = {
-    collection.remove(selector = Json.obj(), writeConcern = writeConcern, firstMatchOnly = false)
+    collection.flatMap(_.remove(selector = Json.obj(), writeConcern = writeConcern, firstMatchOnly = false))
   }
 
   def foreach(
     selector: JsObject = Json.obj(),
     sort: JsObject = Json.obj("_id" -> 1))(f: (Model) => Unit)(implicit ec: ExecutionContext): Future[Unit] = {
-    collection.find(selector).sort(sort).cursor[Model]()
+    collection.flatMap(_.find(selector).sort(sort).cursor[Model]()
       .enumerate()
       .apply(Iteratee.foreach(f))
-      .flatMap(i => i.run)
+      .flatMap(i => i.run))
   }
 
   def fold[A](
     selector: JsObject = Json.obj(),
     sort: JsObject = Json.obj("_id" -> 1),
     state: A)(f: (A, Model) => A)(implicit ec: ExecutionContext): Future[A] = {
-    collection.find(selector).sort(sort).cursor[Model]
+    collection.flatMap(_.find(selector).sort(sort).cursor[Model]
       .enumerate()
       .apply(Iteratee.fold(state)(f))
-      .flatMap(i => i.run)
+      .flatMap(i => i.run))
   }
 
   ensureIndexes()
 }
 
 object JsonDao {
-  def apply[Model: OFormat, ID: Writes](db: => DB, collectionName: String)(
+  def apply[Model: OFormat, ID: Writes](db: => Future[DefaultDB], collectionName: String)(
     implicit lifeCycle: LifeCycle[Model, ID] = new ReflexiveLifeCycle[Model, ID], ec: ExecutionContext): JsonDao[Model, ID] = new JsonDao[Model, ID](db, collectionName) {}
 
 }
