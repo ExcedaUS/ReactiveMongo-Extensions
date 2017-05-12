@@ -1,4 +1,5 @@
 import scalariform.formatter.preferences._
+import aether.AetherKeys._
 
 name := "reactivemongo-extensions"
 
@@ -17,7 +18,7 @@ lazy val commonSettings = Seq(
     "-language:implicitConversions",
     "-language:existentials",
     "-target:jvm-1.8"),
-  resolvers ++= Seq(
+    resolvers ++= Seq(
     "Typesafe repository releases" at "http://repo.typesafe.com/typesafe/releases/",
     "Sonatype snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/"),
   javaOptions in Test ++= Seq("-Xmx512m", "-XX:MaxPermSize=512m"),
@@ -30,52 +31,18 @@ lazy val commonSettings = Seq(
   .setPreference(MultilineScaladocCommentsStartOnFirstLine, true)
   .setPreference(PlaceScaladocAsterisksBeneathSecondAsterisk, true))
 
-lazy val publishSettings = Seq(
-  publishMavenStyle := true,
-  publishArtifact in Test := false,
-  publishTo := {
-    val nexus = "https://oss.sonatype.org/"
-    if (isSnapshot.value)
-      Some("snapshots" at nexus + "content/repositories/snapshots")
-    else
-      Some("releases"  at nexus + "service/local/staging/deploy/maven2")
-  },
-  pomExtra := (
-    <url>http://github.com/fehmicansaglam/reactivemongo-extensions</url>
-    <licenses>
-      <license>
-        <name>Apache 2</name>
-        <url>http://www.apache.org/licenses/LICENSE-2.0</url>
-        <distribution>repo</distribution>
-      </license>
-    </licenses>
-    <scm>
-      <url>git@github.com:fehmicansaglam/reactivemongo-extensions.git</url>
-      <connection>scm:git@github.com:fehmicansaglam/reactivemongo-extensions.git</connection>
-    </scm>
-    <developers>
-      <developer>
-        <id>fehmicansaglam</id>
-        <name>Fehmi Can Saglam</name>
-        <url>http://github.com/fehmicansaglam</url>
-      </developer>
-      <developer>
-        <id>osxhacker</id>
-        <name>Steve Vickers</name>
-        <url>http://github.com/osxhacker</url>
-      </developer>
-    </developers>))
-
-val travisSettings = Seq(
-  Travis.travisSnapshotBranches := Seq("0.10.x", "0.10.5.akka23-SNAPSHOT"),
-  commands += Travis.travisCommand
-)
-
 lazy val settings = (
   commonSettings
-  ++ travisSettings
   ++ scalariformSettings
   ++ org.scalastyle.sbt.ScalastylePlugin.Settings)
+
+lazy val publishSettings = Seq(
+  credentials += Credentials(realm = "packagecloud", host = "packagecloud.io", userName = "", passwd = "f016816d0b60b45d8b0b77952f98b51a680c7c309015c8a7"),
+  //publishMavenStyle := true,
+  //publishArtifact in Test := false,
+  aetherWagons := Seq(aether.WagonWrapper("packagecloud+https", "io.packagecloud.maven.wagon.PackagecloudWagon")),
+  publishTo := Some("packagecloud+https" at "packagecloud+https://packagecloud.io/exceda-eng/maven")
+)
 
 lazy val root = project.in(file("."))
   .aggregate(bson, json, core, samples)
